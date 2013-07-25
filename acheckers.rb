@@ -1,60 +1,34 @@
 require "gosu"
 
+class Board
+  attr_accessor :board
+  def initialize
+    @board = Array.new(8) {Array.new(8,nil)}
+  end
+
+end
+
 class Piece
-  attr_accessor :pos, :image, :color
+  attr_accessor :pos, :image
   def initialize(pos, color, window)
     @pos = pos
     @image = Gosu::Image.new(window, "#{Dir.pwd}/#{color}_checker.png", false)
     @color = color
-    @dir = (@color == :black ? 1 : -1)
+
   end
 
-  def sliding_moves(board)
-    x, y = @pos
-    sliding_moves = []
-    moves = [[x + @dir, y + 1], [x + @dir, y - 1]]
-    moves.each do |move|
-      if on_board?(move) && board[move[0]][move[1]].nil?
-        sliding_moves << move
-      end
-    end
-    sliding_moves
-  end
-
-  def jump_moves(board)
-    x, y = @pos
-    jump_moves = []
-    to_be_eaten = []
-    moves = [[x + 2*@dir, y +2], [x + 2*@dir, y - 2]]
-    obstacles = [[x + @dir, y + 1], [x + @dir, y - 1 ]]
-    moves.each_with_index do |move, ind|
-      i, j = move
-      if on_board?(move) && board[i][j].nil?
-        if board[obstacles[ind][0]][obstacles[ind][1]] != nil
-          if board[obstacles[ind][0]][obstacles[ind][1]].color != @color
-            jump_moves << move
-            to_be_eaten << obstacles[ind]
-          end
-        end
-      end
-    end
-    [jump_moves, to_be_eaten]
-  end
-
-  def possible_moves(board)
+  def possible_moves
+    dir = (@color == :black ? 1 : -1)
     possible_moves = []
-    sliding_moves(board).each do |move|
-      possible_moves << [move,nil]
-    end
 
-    possible_moves += jump_moves(board).transpose
-    possible_moves
+
+
+    return possible_moves #array of possible chains
   end
 
   def on_board?(destination)
-    x, y = destination
-    return false if x < 0 || x > 7 || y < 0 || y > 7
-    true
+
+
   end
 
   def coords
@@ -63,7 +37,7 @@ class Piece
 end
 
 class Board
-  attr_reader :pieces, :board
+  attr_reader :pieces
   def initialize(window)
     @board = Array.new(8) {Array.new(8)}
     @pieces = []
@@ -92,6 +66,7 @@ class Board
     @board[pos[0]][pos[1]] = piece
   end
 
+
 end
 
 class GameWindow < Gosu::Window
@@ -104,7 +79,6 @@ class GameWindow < Gosu::Window
     @pieces = @board.pieces
     @mouse_loaded = false
     @cursor = @original_cursor
-    @turn = 0
   end
 
 
@@ -114,9 +88,9 @@ class GameWindow < Gosu::Window
 
   def draw
     @background.draw(0,0,0)
-    @cursor.draw(self.mouse_x - 20, self.mouse_y - 20, 3)
+    @cursor.draw(self.mouse_x - 20, self.mouse_y - 20, 2)
     self.draw_pieces
-    self.draw_possible_moves
+
   end
 
   def button_down(id)
@@ -124,39 +98,22 @@ class GameWindow < Gosu::Window
       x = (self.mouse_x / 100).to_i
       y = (self.mouse_y / 100).to_i
       self.choose_action(y, x)
-    end
-  end
+    else
 
-  def draw_possible_moves
-    unless @load.nil?
-      @load.possible_moves(@board.board).each do |move|
-        x = move[0][1]*100 + 10
-        y = move[0][0]*100 + 10
-        @highlight.draw(x, y, 2)
-      end
+
     end
   end
 
   def choose_action(x, y)
     if @mouse_loaded
-      destinations = @load.possible_moves(@board.board).transpose[0]
-      could_be_eaten = @load.possible_moves(@board.board).transpose[1]
-      which_move = destinations.index([x,y]) if destinations
-      if which_move
-        keep_going = false
-        self.unload_piece(x, y)
-        about_to_die = could_be_eaten[which_move]
-        if about_to_die
-          @pieces.delete(about_to_die)
-          @board[about_to_die] = nil
-          keep_going = true
-        end
+      #display possible moves
+      self.unload_piece(x, y)
+      @mouse_loaded = !@mouse_loaded
 
-        @turn = 1 - @turn unless keep_going
-        @mouse_loaded = !@mouse_loaded
-      end
+
     else
       if self.load_piece(x, y)
+        @load.possible_moves
         @mouse_loaded = !@mouse_loaded
       end
     end
@@ -179,11 +136,10 @@ class GameWindow < Gosu::Window
     @pieces << [x, y] #adds it to pieces again
     @board[[x,y]].pos = [x, y]
     @cursor = @original_cursor
-    @load = nil
   end
 
   def load_images
-    assets = ["cursor1.png","chessboard.png","highlight.png"]
+    assets = ["cursor1.png","chessboard.png"]
     paths = {}
     assets.each do |asset|
       paths[asset] = File.join(Dir.pwd, asset)
@@ -191,7 +147,7 @@ class GameWindow < Gosu::Window
 
     @background = Gosu::Image.new(self, paths["chessboard.png"], false)
     @original_cursor = Gosu::Image.new(self, paths["cursor1.png"], true)
-    @highlight = Gosu::Image.new(self, paths["highlight.png"], false)
+
   end
 
   def draw_pieces
