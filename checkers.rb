@@ -1,7 +1,7 @@
 require "gosu"
 
 class Piece
-  attr_accessor :pos, :image, :color
+  attr_accessor :pos, :image, :color, :jump_mode
   attr_reader :king
   def initialize(pos, color, window)
     @pos = pos
@@ -10,6 +10,7 @@ class Piece
     @dir = (@color == :black ? 1 : -1)
     @king = false
     @window = window
+    @jump_mode = false
   end
 
   def king=(arg)
@@ -35,7 +36,6 @@ class Piece
   def jump_moves(board)
     x, y = @pos
     jump_moves = []
-    to_be_eaten = []
     moves = [[x + 2*@dir, y +2], [x + 2*@dir, y - 2]]
     obstacles = [[x + @dir, y + 1], [x + @dir, y - 1 ]]
     if @king
@@ -48,22 +48,22 @@ class Piece
         if board[obstacles[ind][0]][obstacles[ind][1]] != nil
           if board[obstacles[ind][0]][obstacles[ind][1]].color != @color
             jump_moves << move
-            to_be_eaten << obstacles[ind]
           end
         end
       end
     end
-    [jump_moves, to_be_eaten]
+    jump_moves
   end
 
   def possible_moves(board)
     possible_moves = []
-    sliding_moves(board).each do |move|
-      possible_moves << [move,nil]
-    end
 
-    possible_moves += jump_moves(board).transpose
-    possible_moves
+    if @jump_mode
+      return jump_moves(board)
+    else
+      possible_moves = sliding_moves(board) + jump_moves(board)
+      possible_moves
+    end
   end
 
   def on_board?(destination)
@@ -145,8 +145,8 @@ class GameWindow < Gosu::Window
   def draw_possible_moves
     unless @load.nil?
       @load.possible_moves(@board.board).each do |move|
-        x = move[0][1]*100 + 10
-        y = move[0][0]*100 + 10
+        x = move[1]*100 + 10
+        y = move[0]*100 + 10
         @highlight.draw(x, y, 2)
       end
     end
@@ -159,25 +159,29 @@ class GameWindow < Gosu::Window
         self.unload_piece(x, y)
         @keep_going = true
       else
-        destinations = @load.possible_moves(@board.board).transpose[0]
-        could_be_eaten = @load.possible_moves(@board.board).transpose[1]
-        which_move = destinations.index([x,y]) if destinations
-        if which_move
+        if @load.possible_moves(@board.board).include?([x,y])
+
+          if (@load.pos[0] - x) ** 2 + (@load.pos[1] - y) ** 2 > 2
+            @load.jump_mode = true
+            casualty = [(@load.pos[0] + x)/2, (@load.pos[1] + y)/2]
+            p casualty
+            @pieces.delete(casualty)
+            @board[casualty] = nil
+          end
           self.unload_piece(x, y)
-          about_to_die = could_be_eaten[which_move]
-          if about_to_die #if it jumped and ate something
-            @pieces.delete(about_to_die)
-            @board[about_to_die] = nil
-            @keep_going = true unless @board[[x,y]].possible_moves(@board.board).empty?
+          if !@board[[x,y]].possible_moves(@board.board).empty? && @board[[x,y]].jump_mode
+            @keep_going = true
           end
         end
       end
       @turn = 1 - @turn unless @keep_going
       @mouse_loaded = !@mouse_loaded
     else
-      if @board[[x,y]].color == (@turn == 0 ? :red : :black)
-        if self.load_piece(x, y)
-          @mouse_loaded = !@mouse_loaded
+      unless @board[[x,y]].nil?
+        if @board[[x,y]].color == (@turn == 0 ? :red : :black)
+          if self.load_piece(x, y)
+            @mouse_loaded = !@mouse_loaded
+          end
         end
       end
     end
