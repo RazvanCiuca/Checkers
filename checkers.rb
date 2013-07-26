@@ -2,17 +2,28 @@ require "gosu"
 
 class Piece
   attr_accessor :pos, :image, :color
+  attr_reader :king
   def initialize(pos, color, window)
     @pos = pos
     @image = Gosu::Image.new(window, "#{Dir.pwd}/#{color}_checker.png", false)
     @color = color
     @dir = (@color == :black ? 1 : -1)
+    @king = false
+    @window = window
+  end
+
+  def king=(arg)
+    @king = arg
+    @image = Gosu::Image.new(@window, "#{Dir.pwd}/#{color}_king.png", false)
   end
 
   def sliding_moves(board)
     x, y = @pos
     sliding_moves = []
     moves = [[x + @dir, y + 1], [x + @dir, y - 1]]
+    if @king
+      moves += [[x - @dir, y + 1], [x - @dir, y - 1]]
+    end
     moves.each do |move|
       if on_board?(move) && board[move[0]][move[1]].nil?
         sliding_moves << move
@@ -27,6 +38,10 @@ class Piece
     to_be_eaten = []
     moves = [[x + 2*@dir, y +2], [x + 2*@dir, y - 2]]
     obstacles = [[x + @dir, y + 1], [x + @dir, y - 1 ]]
+    if @king
+      moves += [[x - 2*@dir, y + 2], [x - 2*@dir, y - 2]]
+      obstacles += [[x - @dir, y + 1], [x - @dir, y - 1]]
+    end
     moves.each_with_index do |move, ind|
       i, j = move
       if on_board?(move) && board[i][j].nil?
@@ -139,25 +154,31 @@ class GameWindow < Gosu::Window
 
   def choose_action(x, y)
     if @mouse_loaded
-      destinations = @load.possible_moves(@board.board).transpose[0]
-      could_be_eaten = @load.possible_moves(@board.board).transpose[1]
-      which_move = destinations.index([x,y]) if destinations
-      if which_move
-        keep_going = false
+      @keep_going = false
+      if @load.pos == [x,y] #allows to drop piece in starting position
         self.unload_piece(x, y)
-        about_to_die = could_be_eaten[which_move]
-        if about_to_die
-          @pieces.delete(about_to_die)
-          @board[about_to_die] = nil
-          keep_going = true
+        @keep_going = true
+      else
+        destinations = @load.possible_moves(@board.board).transpose[0]
+        could_be_eaten = @load.possible_moves(@board.board).transpose[1]
+        which_move = destinations.index([x,y]) if destinations
+        if which_move
+          self.unload_piece(x, y)
+          about_to_die = could_be_eaten[which_move]
+          if about_to_die #if it jumped and ate something
+            @pieces.delete(about_to_die)
+            @board[about_to_die] = nil
+            @keep_going = true unless @board[[x,y]].possible_moves(@board.board).empty?
+          end
         end
-
-        @turn = 1 - @turn unless keep_going
-        @mouse_loaded = !@mouse_loaded
       end
+      @turn = 1 - @turn unless @keep_going
+      @mouse_loaded = !@mouse_loaded
     else
-      if self.load_piece(x, y)
-        @mouse_loaded = !@mouse_loaded
+      if @board[[x,y]].color == (@turn == 0 ? :red : :black)
+        if self.load_piece(x, y)
+          @mouse_loaded = !@mouse_loaded
+        end
       end
     end
 
@@ -178,6 +199,10 @@ class GameWindow < Gosu::Window
     @board[[x,y]] = @load #puts the piece down
     @pieces << [x, y] #adds it to pieces again
     @board[[x,y]].pos = [x, y]
+    throne_row = (@load.color == :red ? 0 : 7)
+    if x == throne_row
+      @board[[x,y]].king = true
+    end
     @cursor = @original_cursor
     @load = nil
   end
