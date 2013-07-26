@@ -124,7 +124,7 @@ class GameWindow < Gosu::Window
 
 
   def update
-
+    p (@turn == 0 ? :red : :black)
   end
 
   def draw
@@ -174,6 +174,7 @@ class GameWindow < Gosu::Window
           end
         end
       end
+      @board[[x,y]].jump_mode = false
       @turn = 1 - @turn unless @keep_going
       @mouse_loaded = !@mouse_loaded
     else
