@@ -164,7 +164,6 @@ class GameWindow < Gosu::Window
           if (@load.pos[0] - x) ** 2 + (@load.pos[1] - y) ** 2 > 2
             @load.jump_mode = true
             casualty = [(@load.pos[0] + x)/2, (@load.pos[1] + y)/2]
-            p casualty
             @pieces.delete(casualty)
             @board[casualty] = nil
           end
@@ -175,6 +174,7 @@ class GameWindow < Gosu::Window
         end
       end
       @board[[x,y]].jump_mode = false
+      self.check_for_win
       @turn = 1 - @turn unless @keep_going
       @mouse_loaded = !@mouse_loaded
     else
@@ -187,6 +187,16 @@ class GameWindow < Gosu::Window
       end
     end
 
+  end
+
+  def check_for_win
+    sum = 0
+    @pieces.each do |piece|
+      sum += 1 if @board[piece].color == :red
+    end
+    if sum == 0 or sum == @pieces.size
+      p "#{@board[piece].color} has won!"
+    end
   end
 
   def load_piece(x, y)
