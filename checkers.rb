@@ -124,7 +124,7 @@ class GameWindow < Gosu::Window
 
 
   def update
-    p (@turn == 0 ? :red : :black)
+
   end
 
   def draw
